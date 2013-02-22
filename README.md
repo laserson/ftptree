@@ -3,6 +3,11 @@ ftptree
 
 Generate browsable tree map of FTP site weighted by the amount of data in each directory.
 
+**Dependencies**
+
+For the visualization, I use [d3.js](http://d3js.org/) along with [Bottle](http://bottlepy.org/).
+
+
 **Components**
 
 `crawltree.py`: takes an FTP URL and an output path and generates a JSON object
