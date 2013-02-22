@@ -59,7 +59,7 @@ def process_dir(line):
 # Recursive building of FTP tree
 def crawltree(ftp, tree):
     path = tree['name']
-    results = process_path(ftp, path)
+    results = ftp.process_path(path)
     for line in results:
         if is_file(line):
             (name, size) = process_file(line)
@@ -81,12 +81,12 @@ def computesize(tree):
     tree['size'] = size
     return size
 
-# main script here:
-url = sys.argv[1]
-ftp = ftp_connection(url)
-tree = crawltree(ftp, {'name': '/', 'size': -1, 'children': []})
-log("Total weight in tree is %i" % computesize(tree))
-
-# dump json object
-with open(sys.argv[2], 'w') as op:
-    json.dump(tree, op, encoding='ISO-8859-1')
+if __name__ == '__main__':
+    url = sys.argv[1]
+    ftp = ftp_connection(url)
+    tree = crawltree(ftp, {'name': '/', 'size': -1, 'children': []})
+    log("Total weight in tree is %i" % computesize(tree))
+    
+    # dump json object
+    with open(sys.argv[2], 'w') as op:
+        json.dump(tree, op, encoding='ISO-8859-1')
