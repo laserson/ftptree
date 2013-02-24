@@ -14,6 +14,7 @@ def log(msg):
 class ftp_connection(object):
     def __init__(self, url):
         self.url = url
+        self.failed_attempts = 0
         self.reconnect()
     
     def reconnect(self):
@@ -23,6 +24,7 @@ class ftp_connection(object):
             log("Successfully reconnected to %s" % self.url)
         except ftplib.all_errors:
             log("Failed to reconnect to %s; trying again..." % self.url)
+            time.sleep(5)
             self.reconnect()
     
     def process_path(self, path):
@@ -30,9 +32,15 @@ class ftp_connection(object):
             results = []
             self.ftp.dir(path, results.append)
             log("Processed %s" % path)
+            self.failed_attempts = 0
             return results
         except ftplib.all_errors:
             log("Failed on %s; trying to reconnect..." % path)
+            self.failed_attempts += 1
+            if self.failed_attempts > 5:
+                log("Failed %i times on %s...skipping..." % (self.failed_attempts, path))
+                self.failed_attempts = 0
+                return False
             time.sleep(5)
             self.reconnect()
             return self.process_path(path)
@@ -60,6 +68,9 @@ def process_dir(line):
 def crawltree(ftp, tree):
     path = tree['name']
     results = ftp.process_path(path)
+    if results == False:
+        return tree
+    
     for line in results:
         if is_file(line):
             (name, size) = process_file(line)
@@ -68,6 +79,7 @@ def crawltree(ftp, tree):
         elif is_dir(line):
             name = process_dir(line)
             tree['children'].append(crawltree(ftp, {'name': os.path.join(path, name), 'size': -1, 'children': []}))
+    
     return tree
 
 def computesize(tree):
