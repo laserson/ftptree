@@ -64,6 +64,7 @@ class ftp_connection(object):
         for line in lines:
             fields = line.split()
             name = ' '.join(fields[3:])
+            size = -1
             if fields[2].strip() == '<DIR>':
                 type_ = 'dir'
             else:
@@ -79,6 +80,7 @@ class ftp_connection(object):
         for line in lines:
             fields = line.split()
             name = ' '.join(fields[8:])
+            size = -1
             if line[0] == 'd':
                 type_ = 'dir'
             elif line[0] == '-':
