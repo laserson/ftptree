@@ -143,7 +143,8 @@ def crawltree(ftp, tree):
     
     return tree
 
-# traverse tree and compute sizes for internal nodes
+
+# Traverse tree and compute sizes for internal nodes
 def computesize(tree):
     if tree['size'] > -1:
         return tree['size']
@@ -154,6 +155,7 @@ def computesize(tree):
     
     tree['size'] = size
     return size
+
 
 if __name__ == '__main__':
     import argparse
