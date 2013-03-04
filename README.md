@@ -16,5 +16,5 @@ each node.  CAVEAT: the FTP site must implement the command `MLSD`.
 
 **Crawled FTP sites**
 
-* CDC: `./crawltree.py ftp.cdc.gov data/cdc.json`
-* NCBI: `./crawltree.py ftp.ncbi.nih.gov data/ncbi.json`
+* CDC: `./crawltree.py --url ftp.cdc.gov --output data/cdc.json --method windows`
+* NCBI: `./crawltree.py --url ftp.ncbi.nih.gov --output data/ncbi.json --method mlsd`
