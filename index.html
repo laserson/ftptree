@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>FTPTREE</title>
+        <script type="text/javascript" src="http://d3js.org/d3.v3.min.js"></script>
+        
+    </head>
+    <body>
+        <script type="text/javascript">
+            function draw_tree(data) {
+                // Update annotations
+                d3.select("#header").text(data.url)
+                d3.select("#total_weight").text(String(data.weight))
+                
+                // Update rectangle data
+                d3.selectAll("rect")
+                    .data(data.rects)
+                    .enter()
+                    .append("rect")
+                    .exit()
+                    .remove();
+                
+                d3.selectAll("rect")
+                    .transition()
+                    .duration(2000)
+                    .attr("x", function(d) { return d.x; })
+                    .attr("y", function(d) { return d.y; })
+                    .attr("width", function(d) { return d.dx; })
+                    .attr("height", function(d) { return d.dy; });
+            }
+            
+            function draw_tree(error, data) {
+                d3.select("#current_weight").text(data.__size__);
+                d3.select("svg").selectAll("rect")
+                    .data(data.__children__)
+                    .enter()
+                    .append("rect")
+                    .exit()
+                    .remove();
+                
+                d3.selectAll("rect")
+                    .transition()
+                    .duration(2000)
+                    .attr("x", function(d) { return d.x; })
+                    .attr("y", function(d) { return d.y; })
+                    .attr("width", function(d) { return d.dx; })
+                    .attr("height", function(d) { return d.dy; });
+            }
+            
+            
+            function init_site(data) {
+                d3.select("#current_site").text(data.host);
+                d3.json("/tree/" + data.host + "/" + data.root, draw_tree);
+            }
+        
+            // Load registered sites
+            d3.json("/sites", function(error, data) {
+                d3.select("body").selectAll("p")
+                    .data(data)
+                    .enter()
+                    .append("p")
+                    .text(function(d) { return d.name; })
+                    .attr("id", function(d) {return d.id})
+                    .attr("class", "site");
+                
+                // Set up empty canvas for treemap
+                // MOVE TO HTML MANUALLY...DOESN"T NEED TO BE IN JAVASCRIPT
+                var width = 960, height = 600;  // approx golden ratio
+                var svg = d3.select("body").append("svg")
+                    .attr("width", width)
+                    .attr("height", height);
+                
+                // Initialize viz upon selection of a site
+                d3.selectAll(".site").on("click", init_site);
+                
+                d3.selectAll(".site").on("click", function(d) {
+                    console.log(String(d));
+                    d3.json("/tree/" + d.url + d.root, draw_tree);
+                });
+            });
+        </script>
+        <p id="current_site"></p>
+        <p id="current_weight"></p>
+        
+    </body>
+</html>
