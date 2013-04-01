@@ -7,6 +7,7 @@ import json
 import ftplib
 import random
 import datetime
+import itertools
 
 def log(msg):
     sys.stderr.write("%s\n" % msg)
@@ -14,8 +15,8 @@ def log(msg):
 
 # Object to access FTP site
 class ftp_connection(object):
-    def __init__(self, url, parser='mlsd'):
-        self.url = url
+    def __init__(self, host, parser='mlsd'):
+        self.host = host
         self.failed_attempts = 0
         self.max_attempts = 5
         self.reconnect()
@@ -32,11 +33,11 @@ class ftp_connection(object):
     # continually tries to reconnect ad infinitum
     def reconnect(self):
         try:
-            self.ftp = ftplib.FTP(self.url, timeout=60)
+            self.ftp = ftplib.FTP(self.host, timeout=60)
             self.ftp.login()
-            log("Successfully reconnected to %s" % self.url)
+            log("Successfully reconnected to %s" % self.host)
         except ftplib.all_errors:
-            log("Failed to reconnect to %s; trying again..." % self.url)
+            log("Failed to reconnect to %s; trying again..." % self.host)
             time.sleep(5)
             self.reconnect()
     
@@ -87,6 +88,10 @@ class ftp_connection(object):
             elif line[0] == '-':
                 type_ = 'file'
                 size = int(fields[4])
+            elif line[0] == 'l':
+                continue
+            else:
+                raise ValueError("Don't know what kind of file I have: %s" % line.strip())
             results.append((name, {'type': type_, 'size': size}))
         return results
     
@@ -126,7 +131,7 @@ class ftp_connection(object):
 
 # Recursive building of FTP tree
 def crawltree(ftp, tree):
-    path = tree['name']
+    path = os.path.join(tree['__ancestors__'], tree['__name__'])
     results = ftp.process_path(path)
     if results == False:
         return tree
@@ -136,24 +141,38 @@ def crawltree(ftp, tree):
         type_ = result[1]['type']
         if type_ == 'file':
             size = int(result[1]['size'])
-            tree['children'].append({'name': os.path.join(path, name), 'size': size, 'children': []})
+            tree[name] = {'__name__': name, '__ancestors__': path, '__size__': size}
             log("Appended file %s" % os.path.join(path, name))
         elif type_ == 'dir':
-            tree['children'].append(crawltree(ftp, {'name': os.path.join(path, name), 'size': -1, 'children': []}))
+            tree[name] = crawltree(ftp, {'__name__': name, '__ancestors__': path, '__size__': -1})
     
     return tree
 
 
+# helper fns for iterating through tree children
+def is_meta(key):
+    if key.startswith('__') and key.endswith('__'):
+        return True
+    else:
+        return False
+
+def iter_children(tree):
+    return itertools.ifilterfalse(is_meta, tree.iterkeys())
+
+def iter_meta(tree):
+    return itertools.ifilter(is_meta, tree.iterkeys())
+
+
 # Traverse tree and compute sizes for internal nodes
 def computesize(tree):
-    if tree['size'] > -1:
-        return tree['size']
+    if tree['__size__'] > -1:
+        return tree['__size__']
     
     size = 0
-    for child in tree['children']:
-        size += computesize(child)
+    for child in iter_children(tree):
+        size += computesize(tree[child])
     
-    tree['size'] = size
+    tree['__size__'] = size
     return size
 
 
@@ -161,19 +180,20 @@ if __name__ == '__main__':
     import argparse
     
     parser = argparse.ArgumentParser()
-    parser.add_argument('--url')
+    parser.add_argument('--host')
     parser.add_argument('--output')
+    parser.add_argument('--root', default='/')
     parser.add_argument('--method', default='mlsd', help='One of "mlsd", "unix", or "windows".')
     parser.add_argument('--test-method', action='store_true')
     args = parser.parse_args()
     
-    ftp = ftp_connection(args.url, args.method)
+    ftp = ftp_connection(args.host.strip('/'), args.method)
     
     if args.test_method == True:
         ftp.test_methods()
     else:
-        tree = crawltree(ftp, {'name': '/', 'size': -1, 'children': []})
-        tree['date'] = str(datetime.date.today())
+        tree = crawltree(ftp, {'__name__': '', '__ancestors__': '/' + args.root.strip('/'), '__size__': -1})
+        tree['__date__'] = str(datetime.date.today())
         weight = computesize(tree)
         log("Total weight in tree is %i" % weight)
         
