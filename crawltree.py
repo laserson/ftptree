@@ -176,7 +176,7 @@ if __name__ == '__main__':
     if args.test_method == True:
         ftp.test_methods()
     else:
-        tree = crawltree(ftp, {'name': '', 'ancestors': args.root.strip('/'), 'size': -1})
+        tree = crawltree(ftp, {'name': '', 'ancestors': args.root.strip('/'), 'size': -1, 'children': {}})
         tree['date'] = str(datetime.date.today())
         weight = computesize(tree)
         log("Total weight in tree is %i" % weight)
