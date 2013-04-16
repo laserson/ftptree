@@ -6,7 +6,6 @@ import json
 from bottle import Bottle, run, response, static_file
 
 import squaripy
-import crawltree
 
 width = 700.
 height = 433.
