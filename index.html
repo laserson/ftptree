@@ -3,85 +3,208 @@
     <head>
         <meta charset="utf-8">
         <title>FTPTREE</title>
+        <!-- bootstrap -->
+        <link href="static/bootstrap.min.css" rel="stylesheet">
+        <!-- viz -->
         <script type="text/javascript" src="http://d3js.org/d3.v3.min.js"></script>
-        
     </head>
-    <body>
-        <script type="text/javascript">
-            function draw_tree(data) {
-                // Update annotations
-                d3.select("#header").text(data.url)
-                d3.select("#total_weight").text(String(data.weight))
-                
-                // Update rectangle data
-                d3.selectAll("rect")
-                    .data(data.rects)
-                    .enter()
-                    .append("rect")
-                    .exit()
-                    .remove();
-                
-                d3.selectAll("rect")
-                    .transition()
-                    .duration(2000)
-                    .attr("x", function(d) { return d.x; })
-                    .attr("y", function(d) { return d.y; })
-                    .attr("width", function(d) { return d.dx; })
-                    .attr("height", function(d) { return d.dy; });
-            }
-            
-            function draw_tree(error, data) {
-                d3.select("#current_weight").text(data.__size__);
-                d3.select("svg").selectAll("rect")
-                    .data(data.__children__)
-                    .enter()
-                    .append("rect")
-                    .exit()
-                    .remove();
-                
-                d3.selectAll("rect")
-                    .transition()
-                    .duration(2000)
-                    .attr("x", function(d) { return d.x; })
-                    .attr("y", function(d) { return d.y; })
-                    .attr("width", function(d) { return d.dx; })
-                    .attr("height", function(d) { return d.dy; });
-            }
-            
-            
-            function init_site(data) {
-                d3.select("#current_site").text(data.host);
-                d3.json("/tree/" + data.host + "/" + data.root, draw_tree);
-            }
+    <body style="margin-left: 20px">
+        <!-- for bootstrap -->
+        <script src="http://code.jquery.com/jquery.js"></script>
+        <script src="static/bootstrap.min.js"></script>
         
-            // Load registered sites
+        <!-- viz -->
+        <script type="text/javascript">
+            // The global state
+            var host = null;
+            var path = null;
+            var host2idx = {}; // store mapping from host to dropdown idx
+            
+            // functions to handle state
+            function get_dropdown_site() {
+                var dropdown = d3.select("select")[0][0];
+                return dropdown.children[dropdown.selectedIndex].__data__.host;
+            }
+            
+            function set_dropdown_site(h) {
+                d3.select("select")[0][0].selectedIndex = host2idx[h];
+            }
+            
+            function set_state_to_hash() {
+                var hash = window.location.hash.slice(1).split("/");
+                host = hash[0];
+                path = hash.slice(1).join("/");
+            }
+            
+            function set_state_to_dropdown() {
+                host = get_dropdown_site();
+                path = "";
+            }
+            
+            // utility functions for viz
+            function set_rect_color(d) {
+                if (d.type == "file") {
+                    return d3.rgb(111, 178, 210); // cloudera lighter blue
+                } else if (d.type == "dir") {
+                    return d3.rgb(220, 139, 27); // cloudera orange
+                } else {
+                    return d3.rgb("gray");
+                }
+            }
+            
+            function draw_breadcrumbs() {
+                // this is performed imperatively because it's hard to do it in
+                // d3 declarative style
+                var crumbpad = "8px";
+                var path_elts = path.split("/");
+                // clean up current breadcrumbs
+                d3.select("#location").selectAll("li").remove();
+                // add the hostname as first crumb
+                d3.select("#location").append("li").append("a")
+                    .attr("href", "/#" + host)
+                    .text(host)
+                    .style("padding-right", crumbpad);
+                // add all path crumbs other than the last, which is treated differently
+                for (var i = 0; i < path_elts.length - 1; i++) {
+                    d3.select("#location").append("li").append("a")
+                            .attr("href", "/#" + host + "/" + path_elts.slice(0,i+1).join("/"))
+                            .style("padding-left", crumbpad)
+                            .style("padding-right", crumbpad)
+                            .text(path_elts[i]);
+                }
+                // add the last path element
+                d3.select("#location").append("li").attr("class", "active")
+                    .style("padding-left", crumbpad)
+                    .style("padding-right", crumbpad)
+                    .text(path_elts[path_elts.length - 1]);
+                
+                // insert separators after each crumb...
+                d3.select("#location").selectAll("li").append("span").text("/");
+                // ...and delete it from the last crumb
+                d3.select("#location").select("li:last-of-type").selectAll("span").remove();
+                
+                // style the text for the breadcrumbs
+                // d3.select("#location").selectAll("li")
+                    // .style("font-size", "25px");
+                //     .style("font-weight", "bold");
+            }
+            
+            function draw_tree() {
+                // Handle header (breadcrumbs)
+                draw_breadcrumbs();
+                
+                // Get data for and draw tree
+                d3.json("/layout/" + host + "/" + path, function(error, data) {
+                    d3.select("#weight").selectAll("span").remove();
+                    d3.select("#weight").append("span").text(data.humansize).style("font-size", "24px");
+                    d3.select("#weight").append("span").text(" total in the current directory");
+                    
+                    d3.select("#date").text("Last crawled: " + data.date)
+                    
+                    d3.select("svg").selectAll("a").remove();
+                    d3.select("svg").selectAll("a")
+                        .data(data.rects)
+                        .enter()
+                        .append("a")
+                            .attr("xlink:href", function(d) { return "/#" + d.host + "/" + d.path; })
+                        .append("rect")
+                            .attr("x", function(d) { return d.x; })
+                            .attr("y", function(d) { return d.y; })
+                            .attr("width", function(d) { return d.dx; })
+                            .attr("height", function(d) { return d.dy; })
+                            .style("fill", set_rect_color)
+                            .attr("id", "node")
+                    
+                    // register mouseover labels
+                    d3.select("svg").selectAll("rect")
+                        .on("mouseleave", function(d) {
+                            d3.select("#mouseloc").text(null);
+                            d3.select("#mousesize").text(null);
+                        })
+                        .on("mouseenter", function(d) {
+                            d3.select("#mouseloc").text(d.name + (d.type == "dir" ? "/" : ""));
+                            d3.select("#mousesize").text(d.size);
+                        });
+                })
+            }
+            
+            // ************************************************
+            // INITIALIZE SITE SKELETON
+            // (depends on populating list of sites)
+            
+            // populate list of possible sites
             d3.json("/sites", function(error, data) {
-                d3.select("body").selectAll("p")
+                // Add each available site
+                var dropdown = d3.select("select");
+                dropdown.selectAll("option")
                     .data(data)
                     .enter()
-                    .append("p")
-                    .text(function(d) { return d.name; })
-                    .attr("id", function(d) {return d.id})
-                    .attr("class", "site");
+                    .append("option")
+                    .text(function(d) { return d.name; });
                 
-                // Set up empty canvas for treemap
-                // MOVE TO HTML MANUALLY...DOESN"T NEED TO BE IN JAVASCRIPT
-                var width = 960, height = 600;  // approx golden ratio
-                var svg = d3.select("body").append("svg")
-                    .attr("width", width)
-                    .attr("height", height);
+                // populate dropdown item to idx mapping
+                for (var i = 0; i < dropdown[0][0].children.length; i++) {
+                    host2idx[dropdown[0][0].children[i].__data__.host] = i;
+                }
                 
-                // Initialize viz upon selection of a site
-                d3.selectAll(".site").on("click", init_site);
+                // Set initial state
+                if (window.location.hash) {
+                    set_state_to_hash(); // must be called first, so that select change doesn't do anything
+                    set_dropdown_site(host);
+                } else {
+                    set_state_to_dropdown();
+                }
                 
-                d3.selectAll(".site").on("click", function(d) {
-                    console.log(String(d));
-                    d3.json("/tree/" + d.url + d.root, draw_tree);
+                // Change hash when new site is picked in dropdown
+                d3.select("select").on("change", function() {
+                    if (host != get_dropdown_site()) {
+                        window.location.hash = get_dropdown_site(); // will trigger hashchange
+                    }
                 });
+                
+                draw_tree();
             });
+            
+            // There are two possible events that should trigger redraw:
+            //  * hashchange (takes priority)
+            //  * select change
+            
+            // register fn to draw tree updates
+            window.onhashchange = function() {
+                set_state_to_hash(); // must be called first, so that select change doesn't do anything
+                set_dropdown_site(host);
+                draw_tree();
+            };
         </script>
-        <p id="current_site"></p>
-        <p id="current_weight"></p>
         
+        <div class="row">
+            <div class="span9">
+                <h1>FTPTREE</h1>
+                <p class="lead">FTP site visualization to help you find the data.</p>
+                <select class="span9"></select>
+            </div>
+        </div>
+        
+        <div class="row">
+             <div class="span9">
+                <ul class="breadcrumb lead" id="location"></ul>
+             </div>
+        </div>
+        
+        <div class="row">
+            <div class="span9" id="weight"></div>
+        </div>
+        <div class="row">
+            <div class="span9">
+                <svg id="canvas" width="700" height="433"></svg>
+            </div>
+            <div class="span3">
+                <div id="mouseloc"></div>
+                <div id="mousesize"></div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="span9" id="date"></div>
+        </div>
     </body>
 </html>
