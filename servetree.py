@@ -5,7 +5,7 @@ import json
 
 from bottle import Bottle, run, response, static_file
 
-import squaripy
+import squarify
 
 width = 700.
 height = 433.
@@ -110,8 +110,8 @@ def tree_layout(ftp_host, path=''):
     sizes = [sizes[i] for i in order]
     
     # compute the treemap layout
-    sizes = squaripy.normalize_sizes(sizes, width, height)
-    rects = squaripy.padded_squarify(sizes, 0, 0, width, height)
+    sizes = squarify.normalize_sizes(sizes, width, height)
+    rects = squarify.padded_squarify(sizes, 0, 0, width, height)
     
     # annotate rects with some metadata
     for (child, rect) in zip(children, rects):

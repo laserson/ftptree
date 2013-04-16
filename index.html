@@ -101,22 +101,40 @@
                     
                     d3.select("#date").text("Last crawled: " + data.date)
                     
-                    d3.select("svg").selectAll("a").remove();
-                    d3.select("svg").selectAll("a")
+                    d3.select("svg").selectAll("g").remove();
+                    d3.select("svg").selectAll("g")
                         .data(data.rects)
                         .enter()
+                        .append("g")
                         .append("a")
-                            .attr("xlink:href", function(d) { return "/#" + d.host + "/" + d.path; })
+                            .attr("xlink:href", function(d) { return "/#" + d.host + "/" + d.path; });
+                    d3.select("svg").selectAll("a")
                         .append("rect")
                             .attr("x", function(d) { return d.x; })
                             .attr("y", function(d) { return d.y; })
                             .attr("width", function(d) { return d.dx; })
                             .attr("height", function(d) { return d.dy; })
-                            .style("fill", set_rect_color)
-                            .attr("id", "node")
+                            .style("fill", set_rect_color);
+                    d3.select("svg").selectAll("a")    
+                        .append("text")
+                            .attr("x", function(d) { return d.x + 0.5 * d.dx; })
+                            .attr("y", function(d) { return d.y + 0.5 * d.dy; })
+                            .attr("text-anchor", "middle")
+                            .attr("alignment-baseline", "middle")
+                            .text(function(d) { return d.name + (d.type == "dir" ? "/" : ""); });
+                    
+                    d3.select("svg").selectAll("text")
+                        .attr("visibility", function(d) {
+                            console.log(d.x + "");
+                            if (d.dx < this.getBBox().width + 3) {
+                                return "hidden";
+                            } else {
+                                return "visible";
+                            }
+                        });
                     
                     // register mouseover labels
-                    d3.select("svg").selectAll("rect")
+                    d3.select("svg").selectAll("g")
                         .on("mouseleave", function(d) {
                             d3.select("#mouseloc").text(null);
                             d3.select("#mousesize").text(null);
@@ -125,7 +143,7 @@
                             d3.select("#mouseloc").text(d.name + (d.type == "dir" ? "/" : ""));
                             d3.select("#mousesize").text(d.size);
                         });
-                })
+                });
             }
             
             // ************************************************
@@ -205,6 +223,38 @@
         </div>
         <div class="row">
             <div class="span9" id="date"></div>
+        </div>
+        <div class="row">
+            <div class="span4">
+                <h3>Motivation</h3>
+                <p>Public FTP sites are a great source of data, but when browsing them,
+                you are presented with an opaque top-level directory tree with no
+                idea where the actual data reside.  This tools visualizes each node
+                in the tree according to how much data it hold underneath it, making
+                it easy to determine how the data are distributed in the FTP site.</p>
+            </div>
+            <div class="span4 offset1">
+                <h3>How it's built</h3>
+                <p>The FTP sites are crawled with a python script that generates a JSON
+                representation of the tree structure.  The site is served as a Bottle.py
+                app: it serves the main <code>index.html</code> along with routes
+                for retrieving tree data.  The visualization itself is made with d3.js
+                and styled with Bootstrap.  The sites will be crawled regularly every
+                several weeks (to be polite).</p>
+            </div>
+        </div>
+        <div class="row">
+            <div class="span4">
+                <h3>Credits</h3>
+                <p>This site was built by Uri Laserson (<a href="https://twitter.com/laserson">@laserson</a>),
+                a data scientist at Cloudera.  Some design help from David Hayes and Elizabeth Moran.</p>
+            </div>
+            <div class="span4 offset1">
+                <h3>Suggestions (more sites)</h3>
+                <p>Please send suggestions for more FTP sites to: <em>ftptree AT cloudera . com</em></p>
+                <p>Currently the site is genomics-heavy (my personal bias), so please send more
+                goodies.  I'm also a new d3.js user, so please suggest any changes or fork on GitHub.</p>
+            </div>
         </div>
     </body>
 </html>
