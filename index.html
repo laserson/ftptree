@@ -203,28 +203,38 @@
             </div>
         </div>
         
-        <div class="row">
+        <div class="row" style="margin-top: 20px">
              <div class="span9">
                 <ul class="breadcrumb lead" id="location"></ul>
              </div>
         </div>
         
         <div class="row">
-            <div class="span9" id="weight"></div>
+            <div class="span5" id="weight"></div>
+            <div class="span4" id="date" style="text-align: right"></div>
         </div>
-        <div class="row">
+        <div class="row" style="position: relative">
             <div class="span9">
                 <svg id="canvas" width="700" height="433"></svg>
             </div>
             <div class="span3">
-                <div id="mouseloc"></div>
-                <div id="mousesize"></div>
+                <div class="span3 lead">
+                    <div id="mouseloc"></div>
+                    <div id="mousesize"></div>
+                </div>
+                <div class="span3" style="position: absolute; bottom: 0">
+                    <h5>Legend</h5>
+                    <p>Each box represents a node in the directory tree.  Its area is proportional to its "weight".</p>
+                    <p>Directories are <span style="background-color: rgb(220, 139, 27)">orange</span></p>
+                    <p>Files are <span style="background-color: rgb(111, 178, 210)">blue</span></p>
+                    <p>Labels are displayed if they fit in the boxes.</p>
+                </div>
             </div>
         </div>
         <div class="row">
             <div class="span9" id="date"></div>
         </div>
-        <div class="row">
+        <div class="row" style="margin-top: 20px">
             <div class="span4">
                 <h3>Motivation</h3>
                 <p>Public FTP sites are a great source of data, but when browsing them,
