@@ -69,6 +69,12 @@ def argsort(seq):
 
 # THE APP
 
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument('--host', default='localhost')
+parser.add_argument('--port', default='8080')
+args = parser.parse_args()
+
 app = Bottle()
 
 @app.route('/')
@@ -141,4 +147,4 @@ def tree_layout(ftp_host, path=''):
     
     return json.dumps(data)
 
-run(app, host='localhost', port=8080)
+run(app, host=args.host, port=args.port)
