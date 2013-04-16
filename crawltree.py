@@ -6,11 +6,8 @@ import time
 import json
 import ftplib
 import random
+import logging
 import datetime
-
-def log(msg):
-    sys.stderr.write("%s\n" % msg)
-    sys.stderr.flush()
 
 # Object to access FTP site
 class ftp_connection(object):
@@ -18,7 +15,7 @@ class ftp_connection(object):
         self.host = host
         self.failed_attempts = 0
         self.max_attempts = 5
-        self.reconnect()
+        self.connect()
         
         if callable(parser):
             self.list = parser
@@ -29,15 +26,20 @@ class ftp_connection(object):
         elif parser == 'windows':
             self.list = self.list_windows
     
+    def connect(self):
+        self.ftp = ftplib.FTP(self.host, timeout=60)
+        self.ftp.login()
+        logging.info("CONNECT %s SUCCESS", self.host)
+    
     # continually tries to reconnect ad infinitum
     def reconnect(self):
         try:
             self.ftp = ftplib.FTP(self.host, timeout=60)
             self.ftp.login()
-            log("Successfully reconnected to %s" % self.host)
+            logging.warning("RECONNECT %s SUCCESS", self.host)
         except ftplib.all_errors:
-            log("Failed to reconnect to %s; trying again..." % self.host)
-            time.sleep(5)
+            logging.warning("RECONNECT %s FAILED; trying again...", self.host)
+            time.sleep(5 * random.uniform(0.5, 1.5))
             self.reconnect()
     
     # these functions interact with the FTP with no error checking
@@ -98,17 +100,16 @@ class ftp_connection(object):
         try:
             lines = []
             self.ftp.retrlines('MLSD', lines.append)
-            log("MLSD SUCCESS")
-            log('\n'.join(lines))
+            print "MLSD SUCCESS"
+            print '\n'.join(lines)
         except ftplib.all_errors:
-            log("MLSD FAIL")
+            print "MLSD FAIL"
         
         lines = []
         self.ftp.retrlines('LIST', lines.append)
-        log('\n'.join(lines))
-        
-        log("WINDOWS: name starts at 4th field; size/type is 3rd field")
-        log("UNIX: type is first letter; size is 5th; name starts at 9th")
+        print '\n'.join(lines)
+        print "WINDOWS: name starts at 4th field; size/type is 3rd field"
+        print "UNIX: type is first letter; size is 5th; name starts at 9th"
     
     # this function actually handles the logic of pulling data
     # it tries a max of max_attempts times
@@ -116,15 +117,19 @@ class ftp_connection(object):
         while self.failed_attempts < self.max_attempts:
             try:
                 results = self.list(path)
-                log("Processed %s" % path)
+                logging.info("LIST SUCCESS %s" % path)
+                self.failed_attempts = 0
                 return results
             except ftplib.all_errors:
                 self.failed_attempts += 1
-                log("Failed %i times on %s; trying to reconnect..." % (self.failed_attempts,path))
+                logging.warning("LIST FAILED %s; Failed %i times out of %i; reconnecting...", path, self.failed_attempts, self.max_attempts)
                 time.sleep(2 * random.uniform(0.5, 1.5))
+                self.reconnect()
                 continue
         
         # if I get here, I never succeeded in getting the data
+        logging.warning("LIST ABANDONED %s", path)
+        self.failed_attempts = 0
         return False
         
 
@@ -141,9 +146,10 @@ def crawltree(ftp, tree):
         if type_ == 'file':
             size = int(result[1]['size'])
             tree['children'][name] = {'name': name, 'ancestors': path, 'size': size, 'children': {}}
-            log("Appended file %s" % os.path.join(path, name))
+            logging.info("APPENDED file %s", os.path.join(path, name))
         elif type_ == 'dir':
             tree['children'][name] = crawltree(ftp, {'name': name, 'ancestors': path, 'size': -1, 'children': {}})
+            logging.info("PROCESSED dir %s", os.path.join(path, name))
     
     return tree
 
@@ -168,8 +174,14 @@ if __name__ == '__main__':
     parser.add_argument('--output')
     parser.add_argument('--root', default='')
     parser.add_argument('--method', default='mlsd', help='One of "mlsd", "unix", or "windows".')
+    parser.add_argument('--loglevel', default='INFO')
     parser.add_argument('--test-method', action='store_true')
     args = parser.parse_args()
+    
+    logging.basicConfig(filename=args.output+'.crawl.log',
+                        filemode='w',
+                        level=args.loglevel,
+                        format="%(levelname)s|%(asctime)s|%(message)s")
     
     ftp = ftp_connection(args.host, args.method)
     
@@ -179,7 +191,7 @@ if __name__ == '__main__':
         tree = crawltree(ftp, {'name': '', 'ancestors': args.root.strip('/'), 'size': -1, 'children': {}})
         tree['date'] = str(datetime.date.today())
         weight = computesize(tree)
-        log("Total weight in tree is %i" % weight)
+        logging.info("TOTAL WEIGHT %i bytes", weight)
         
         # dump json object
         with open(args.output, 'w') as op:
