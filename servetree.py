@@ -18,9 +18,12 @@ def load_cache():
     for site in sites:
         cache[site['host']] = {'meta': site}
         data_path = site['treefile']
-        with open(data_path, 'r') as ip:
-            tree = json.load(ip)
-            cache[site['host']]['tree'] = tree
+        try:
+            with open(data_path, 'r') as ip:
+                tree = json.load(ip)
+                cache[site['host']]['tree'] = tree
+        except IOError:
+            continue
 
 def is_cache_fresh():
     return True
