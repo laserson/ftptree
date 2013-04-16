@@ -8,29 +8,17 @@ from bottle import Bottle, run, response, static_file
 import squaripy
 import crawltree
 
-data_dir = 'data'
-
 width = 700.
 height = 433.
 
 # CACHE TREE DATA
-
-# TODO move this to a file eventually allow dropping new sites while server is running
-sites = [{'id': 'cdc',
-          'name': 'Centers for Disease Control and Prevention (CDC)',
-          'host': 'ftp.cdc.gov',
-          'path': '',
-          'treefile': 'cdc.json'},
-         {'id': 'ncbi',
-          'name': 'National Center for Biotechnology Information (NCBI)',
-          'host': 'ftp.ncbi.nih.gov',
-          'path': '',
-          'treefile': 'ncbi.json'}]
+with open('sites.json', 'r') as ip:
+    sites = json.load(ip)
 
 def load_cache():
     for site in sites:
         cache[site['host']] = {'meta': site}
-        data_path = os.path.join(data_dir, site['treefile'])
+        data_path = site['treefile']
         with open(data_path, 'r') as ip:
             tree = json.load(ip)
             cache[site['host']]['tree'] = tree
