@@ -10,41 +10,95 @@ import logging
 import datetime
 
 # Object to access FTP site
-class ftp_connection(object):
-    def __init__(self, host, parser='mlsd'):
+class FTPConnection(object):
+    def __init__(self, host, parser=None):
         self.host = host
         self.failed_attempts = 0
         self.max_attempts = 5
-        self.connect()
+        self.stop_when_connected()
         
-        if callable(parser):
-            self.list = parser
+        if parser is None:
+            # try to guess on first access
+            logging.info("No parser provided; will guess on first attempt.")
+            self._listfn = None
+        elif callable(parser):
+            # supply a custom listing parser
+            logging.info("Supplied a custom dir listing parser.")
+            self._listfn = parser
         elif parser == 'mlsd':
-            self.list = self.list_mlsd
+            logging.info("Set parser to MLSD.")
+            self._listfn = self._list_mlsd
         elif parser == 'unix':
-            self.list = self.list_unix
+            logging.info("Set parser to UNIX.")
+            self._listfn = self._list_unix
         elif parser == 'windows':
-            self.list = self.list_windows
+            logging.info("Set parser to WINDOWS.")
+            self._listfn = self._list_windows
     
-    def connect(self):
+    def _connect(self):
+        # attempt an anonymous FTP connection
+        logging.info("CONNECT %s ATTEMPT", self.host)
         self.ftp = ftplib.FTP(self.host, timeout=60)
         self.ftp.login()
         logging.info("CONNECT %s SUCCESS", self.host)
     
-    # continually tries to reconnect ad infinitum
-    def reconnect(self):
+    def stop_when_connected(self):
+        # continually tries to reconnect ad infinitum
         try:
-            self.ftp = ftplib.FTP(self.host, timeout=60)
-            self.ftp.login()
-            logging.warning("RECONNECT %s SUCCESS", self.host)
+            self._connect()
         except ftplib.all_errors:
-            logging.warning("RECONNECT %s FAILED; trying again...", self.host)
+            logging.warning("CONNECT %s FAILED; trying again...", self.host)
             time.sleep(5 * random.uniform(0.5, 1.5))
-            self.reconnect()
+            self.stop_when_connected()
+    
+    def _list(self, path):
+        # public fn to get a path listing
+        # guesses the format if it's not explicitly set
+        try:
+            return self._listfn(path)
+        except AttributeError:
+            # self._listfn is not defined;
+            # try to guess it
+            self._listfn = self._guess_parser(path)
+            return self._listfn(path)
+    
+    def _guess_parser(self, path):
+        # also check out this library: http://cr.yp.to/ftpparse.html
+        logging.info("Guessing FTP listing parser for %s...", self.host)
+        try:
+            lines = []
+            self.ftp.retrlines('MLSD %s' % path, lines.append)
+            logging.info("Guessing parser: MLSD success")
+            return self._list_mlsd
+        except ftplib.all_errors:
+            logging.info("Guessing parser: MLSD fail")
+        
+        # not MLSD, so:
+        # get a listing and check a few properties
+        dir_in_3rd = lambda line: "<DIR>" in line.split()[2]
+        numeric_first_letter = lambda line: line[0] >= '0' and line[0] <= '9'
+        unix_first_letter = lambda line: line[0] in 'd-lpsbc'
+        
+        lines = []
+        self.ftp.retrlines('LIST %s' % path, lines.append)
+        
+        # check for windows
+        if (any(map(dir_in_3rd, lines)) and
+                all(map(numeric_first_letter, lines))):
+            logging.info("Guessing parser: WINDOWS")
+            return self._list_windows
+        
+        # check for unix
+        if all(map(unix_first_letter, lines)):
+            logging.info("Guessing parser: UNIX")
+            return self._list_unix
+        
+        logging.error('\n'.join(lines))
+        raise RuntimeError("Failed to guess parser.")
     
     # these functions interact with the FTP with no error checking
     # they just take a path and try to return properly-formatted data
-    def list_mlsd(self, path):
+    def _list_mlsd(self, path):
         # copy of MLSD impl from Python 3.3 ftplib package that returns
         # listing data in a machine-readable format
         cmd = 'MLSD %s' % path
@@ -60,7 +114,7 @@ class ftp_connection(object):
             results.append((name, entry))
         return results
     
-    def list_windows(self, path):
+    def _list_windows(self, path):
         lines = []
         self.ftp.dir(path, lines.append)
         results = []
@@ -76,7 +130,7 @@ class ftp_connection(object):
             results.append((name, {'type': type_, 'size': size}))
         return results
     
-    def list_unix(self, path):
+    def _list_unix(self, path):
         lines = []
         self.ftp.dir(path, lines.append)
         results = []
@@ -96,36 +150,21 @@ class ftp_connection(object):
             results.append((name, {'type': type_, 'size': size}))
         return results
     
-    def test_methods(self):
-        try:
-            lines = []
-            self.ftp.retrlines('MLSD', lines.append)
-            print "MLSD SUCCESS"
-            print '\n'.join(lines)
-        except ftplib.all_errors:
-            print "MLSD FAIL"
-        
-        lines = []
-        self.ftp.retrlines('LIST', lines.append)
-        print '\n'.join(lines)
-        print "WINDOWS: name starts at 4th field; size/type is 3rd field"
-        print "UNIX: type is first letter; size is 5th; name starts at 9th"
-    
     # this function actually handles the logic of pulling data
     # it tries a max of max_attempts times
     def process_path(self, path):
         while self.failed_attempts < self.max_attempts:
             try:
-                results = self.list(path)
+                results = self._list(path)
                 logging.info("LIST SUCCESS %s" % path)
                 self.failed_attempts = 0
                 return results
             except ftplib.all_errors:
                 self.failed_attempts += 1
+                self.ftp.close()
                 logging.warning("LIST FAILED %s; Failed %i times out of %i; reconnecting...", path, self.failed_attempts, self.max_attempts)
                 time.sleep(2 * random.uniform(0.5, 1.5))
-                self.reconnect()
-                continue
+                self.stop_when_connected()
         
         # if I get here, I never succeeded in getting the data
         logging.warning("LIST ABANDONED %s", path)
@@ -170,29 +209,24 @@ if __name__ == '__main__':
     import argparse
     
     parser = argparse.ArgumentParser()
-    parser.add_argument('--host')
-    parser.add_argument('--output')
-    parser.add_argument('--root', default='')
-    parser.add_argument('--method', default='mlsd', help='One of "mlsd", "unix", or "windows".')
+    parser.add_argument('config')
     parser.add_argument('--loglevel', default='INFO')
-    parser.add_argument('--test-method', action='store_true')
     args = parser.parse_args()
     
-    logging.basicConfig(filename=args.output+'.crawl.log',
+    with open(args.config, 'r') as ip:
+        config = json.loads(ip.read())
+    
+    logging.basicConfig(filename=config['id'] + '.crawl.log',
                         filemode='w',
                         level=args.loglevel,
                         format="%(levelname)s|%(asctime)s|%(message)s")
     
-    ftp = ftp_connection(args.host, args.method)
+    ftp = FTPConnection(config['host'], config['ftp_list_method'])    
+    tree = crawltree(ftp, {'name': '', 'ancestors': config['root_path'].strip('/'), 'size': -1, 'children': {}})
+    tree['date'] = str(datetime.date.today())
+    weight = computesize(tree)
+    logging.info("TOTAL WEIGHT %i bytes", weight)
     
-    if args.test_method == True:
-        ftp.test_methods()
-    else:
-        tree = crawltree(ftp, {'name': '', 'ancestors': args.root.strip('/'), 'size': -1, 'children': {}})
-        tree['date'] = str(datetime.date.today())
-        weight = computesize(tree)
-        logging.info("TOTAL WEIGHT %i bytes", weight)
-        
-        # dump json object
-        with open(args.output, 'w') as op:
-            json.dump(tree, op, encoding='ISO-8859-1')
+    # dump json object
+    with open(config['tree_file'], 'w') as op:
+        json.dump(tree, op, encoding='ISO-8859-1')

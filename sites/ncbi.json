@@ -1,0 +1,8 @@
+{
+    "id": "ncbi",
+    "name": "NCBI - National Center for Biotechnology Information",
+    "host": "ftp.ncbi.nih.gov",
+    "root_path": "",
+    "tree_file": "trees/ncbi.json",
+    "ftp_list_method": "mlsd"
+}

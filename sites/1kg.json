@@ -1,0 +1,8 @@
+{
+    "id": "1kg",
+    "name": "1000 Genomes Project",
+    "host": "ftp-trace.ncbi.nih.gov",
+    "root_path": "1000genomes/ftp",
+    "tree_file": "trees/1kg.json",
+    "ftp_list_method": "mlsd"
+}
