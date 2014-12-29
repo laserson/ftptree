@@ -1,8 +1,8 @@
 FTPTREE
 =======
 
-Generates browsable tree map of FTP site weighted by the amount of data in each
-directory.
+Generates browsable tree map of an FTP site weighted by the amount of data in
+each directory. FTP site is crawled using `scrapy`.
 
 
 Installation
@@ -11,12 +11,19 @@ Installation
 Requires `python>=2.7`.
 
 Required python modules:
-* `squarify`
-* `bottle`
+
+* `scrapy` for crawling FTP sites
+
+* `squarify` for laying out tree maps
+
+* `bottle` for lightweight web server
 
 Modules used for visualization/front end:
+
 * d3.js
+
 * Twitter Bootstrap
+
 * jQuery
 
 Clone package from GitHub, e.g.,
@@ -42,6 +49,14 @@ the directory tree, including sizes of the files.
 The `static/` directory contains the Bootstrap files.
 
 `index.html` is the main d3.js visualization.
+
+To crawl:
+
+```bash
+scrapy crawl ftptree -a config_file=sites/ncbi.json -s JOBDIR=tmp_crawl/ncbi -o crawls/ncbi.txt -t jsonlines
+scrapy crawl ftptree -a config_file=sites/ucsc.json -s JOBDIR=tmp_crawl/ucsc -o crawls/ucsc.txt -t jsonlines
+scrapy crawl ftptree -a config_file=sites/cdc.json -s JOBDIR=tmp_crawl/cdc -o crawls/cdc.txt -t jsonlines
+```
 
 
 How to crawl an FTP tree
